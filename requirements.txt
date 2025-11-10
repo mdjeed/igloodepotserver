@@ -1,0 +1,4 @@
+asyncio
+websockets
+mysql-connector-python
+uuid

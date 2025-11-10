@@ -1,0 +1,12 @@
+{
+    "database": {
+      "host": "localhost",
+      "user": "root",
+      "password": "moha",
+      "database": "igloo_depot"
+    },
+    "server": {
+      "host": "0.0.0.0",
+      "port": 5050
+    }
+  }
