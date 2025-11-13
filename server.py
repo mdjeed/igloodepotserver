@@ -17,7 +17,6 @@ server_config = config['server']
 # 🔁 نظام ذكي للاتصال بقاعدة البيانات
 # ==========================
 def get_db_connection():
-    """إنشاء اتصال جديد بقاعدة البيانات"""
     try:
         conn = mysql.connector.connect(
             host=db_config['host'],
@@ -44,7 +43,6 @@ def ensure_connection():
 db = get_db_connection()
 cursor = db.cursor()
 
-# إنشاء جدول المستخدمين إن لم يكن موجوداً
 cursor.execute('''CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     username VARCHAR(255) NOT NULL,
@@ -54,7 +52,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
 db.commit()
 
 # ==========================
-# 🔌 دالة استقبال الرسائل
+# 🧠 دالة معالجة الاتصالات
 # ==========================
 async def handle_connection(websocket, path):
     try:
@@ -62,13 +60,10 @@ async def handle_connection(websocket, path):
         print(f"Client connected from IP: {client_ip}")
 
         async for message in websocket:
-            ensure_connection()  # ✅ تأكد من الاتصال في كل رسالة
+            ensure_connection()
             data = json.loads(message)
             action = data.get('action')
 
-            # --------------------------
-            # تسجيل الدخول
-            # --------------------------
             if action == 'login':
                 username = data['username']
                 password = data['password']
@@ -81,15 +76,11 @@ async def handle_connection(websocket, path):
                     cursor.execute('UPDATE mstkhdm_igloo SET token=%s WHERE id=%s', (token, user[0]))
                     db.commit()
                     response = {'status': 'success', 'message': 'Logged in successfully', 'token': token}
-                    print(f'✅ User {username} logged in.')
                 else:
                     response = {'status': 'error', 'message': 'Invalid credentials'}
                 
                 await websocket.send(json.dumps(response))
 
-            # --------------------------
-            # التحقق من الجلسة
-            # --------------------------
             elif action == 'check_login':
                 token = data['token']
                 cursor.execute('SELECT * FROM mstkhdm_igloo WHERE token=%s', (token,))
@@ -102,18 +93,12 @@ async def handle_connection(websocket, path):
                 
                 await websocket.send(json.dumps(response))
 
-            # --------------------------
-            # جلب الفئات
-            # --------------------------
             elif action == 'get_catego':
                 cursor.execute("SELECT id, name FROM categories")
                 items = cursor.fetchall()
                 items_list = [{'id': item[0], 'name': item[1]} for item in items]
                 await websocket.send(json.dumps({"status": "catego list", "categories": items_list}))
 
-            # --------------------------
-            # جلب المنتجات حسب الفئة
-            # --------------------------
             elif action == 'get_items_by_category':
                 categoryid = data['category_id']
                 cursor.execute("SELECT name, id, quantity FROM products WHERE category_id = %s", (categoryid,))
@@ -121,9 +106,6 @@ async def handle_connection(websocket, path):
                 products_list = [{'name': p[0], 'id': p[1], 'quantity': p[2]} for p in products]
                 await websocket.send(json.dumps({"status": "product list", "items": products_list}))
 
-            # --------------------------
-            # إضافة منتج
-            # --------------------------
             elif action == 'add_product':
                 productname = data['name']
                 quantityproduct = data['quantity']
@@ -134,16 +116,15 @@ async def handle_connection(websocket, path):
 
                 if result:
                     new_quantity = result[0] + quantityproduct
-                    cursor.execute("UPDATE products SET quantity = %s WHERE name = %s AND category_id = %s", (new_quantity, productname, categoryid))
+                    cursor.execute("UPDATE products SET quantity = %s WHERE name = %s AND category_id = %s",
+                                   (new_quantity, productname, categoryid))
                 else:
-                    cursor.execute("INSERT INTO products (name, quantity, category_id) VALUES (%s, %s, %s)", (productname, quantityproduct, categoryid))
+                    cursor.execute("INSERT INTO products (name, quantity, category_id) VALUES (%s, %s, %s)",
+                                   (productname, quantityproduct, categoryid))
                 
                 db.commit()
                 await websocket.send(json.dumps({"status": "product list"}))
 
-            # --------------------------
-            # إضافة فئة جديدة
-            # --------------------------
             elif action == 'add_category':
                 category_name = data['name']
                 cursor.execute("SELECT id FROM categories WHERE name = %s", (category_name,))
@@ -157,39 +138,30 @@ async def handle_connection(websocket, path):
                     response = {"status": "success", "message": "Category added successfully"}
                 await websocket.send(json.dumps(response))
 
-            # --------------------------
-            # فحص التحديثات
-            # --------------------------
             elif action == 'check_update':
                 latest_version = "1.0.2"
                 urlupdate = "https://play.google.com/store/apps/details?id=com.mycompany.igloo"
-                response = {
-                    'action': 'app_update',
-                    'urlupdate': urlupdate,
-                    'version': latest_version
-                }
+                response = {'action': 'app_update', 'urlupdate': urlupdate, 'version': latest_version}
                 await websocket.send(json.dumps(response))
 
-    except websockets.exceptions.ConnectionClosedOK:
-        print("🔌 Connection closed normally")
-    except websockets.exceptions.ConnectionClosedError as e:
-        print(f"⚠️ Connection closed with error: {e}")
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
 
 # ==========================
-# تشغيل الخادم مع SSL
+# 🚀 تشغيل الخادم بالطريقة الصحيحة (asyncio.run)
 # ==========================
-ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-ssl_context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+async def main():
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.load_cert_chain(certfile="server.crt", keyfile="server.key")
 
-start_server = websockets.serve(
-    handle_connection,
-    server_config['host'],
-    server_config['port'],
-    ssl=ssl_context
-)
+    async with websockets.serve(
+        handle_connection,
+        server_config['host'],
+        server_config['port'],
+        ssl=ssl_context
+    ):
+        print(f"🚀 Server started on {server_config['host']}:{server_config['port']}")
+        await asyncio.Future()  # تشغيل دائم
 
-print(f"🚀 Server started on {server_config['host']}:{server_config['port']}")
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
+if __name__ == "__main__":
+    asyncio.run(main())
