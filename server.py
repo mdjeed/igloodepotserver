@@ -249,9 +249,12 @@ ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 ssl_context.load_cert_chain(certfile="server.crt",
                             keyfile="server.key")
 
-start_server = websockets.serve(handle_connection, server_config['host'], server_config['port'])
+async def main():
+    print(f"Server starting on {server_config['host']}:{server_config['port']}")
+    async with websockets.serve(handle_connection, server_config['host'], server_config['port']):
+        print("Server is running...")
+        await asyncio.Future()  # تشغيل دائم (انتظار لا نهائي)
 
-print(f"Server started on {server_config['host']}:{server_config['port']}")
+if __name__ == "__main__":
+    asyncio.run(main())
 
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
