@@ -29,7 +29,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
 
 db.commit()
 
-async def handle_connection(websocket,path):
+async def handle_connection(websocket):
     try:
         client_ip = websocket.remote_address[0]
         print(f"Client connected from IP: {client_ip}")
