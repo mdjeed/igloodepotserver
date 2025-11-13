@@ -29,7 +29,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
 
 db.commit()
 
-async def handle_connection(websocket, path):
+async def handle_connection(websocket):
     try:
         client_ip = websocket.remote_address[0]
         print(f"Client connected from IP: {client_ip}")
@@ -99,17 +99,17 @@ async def handle_connection(websocket, path):
                 quantityproduct = data['quantity']
                 categoryid = data['category_id']
 
-                # تحقق مما إذا كانت السلعة موجودة بالفعل
+          
                 cursor.execute("SELECT quantity FROM products WHERE name = %s AND category_id = %s", (productname, categoryid))
                 result = cursor.fetchone()
 
                 if result:
-                    # إذا كانت السلعة موجودة، قم بتحديث الكمية
+                   
                     current_quantity = result[0]
                     new_quantity = current_quantity + quantityproduct
                     cursor.execute("UPDATE products SET quantity = %s WHERE name = %s AND category_id = %s", (new_quantity, productname, categoryid))
                 else:
-                    # إذا لم تكن موجودة، أضف السلعة كجديدة
+                   
                     cursor.execute("INSERT INTO products (name, quantity, category_id) VALUES (%s, %s, %s)", (productname, quantityproduct, categoryid))
                 
                 db.commit()
@@ -167,13 +167,13 @@ async def handle_connection(websocket, path):
 
 
             elif data['action'] == 'check_update':
-                # الإصدار الأحدث من التطبيق (يمكنك جلبه من قاعدة بيانات أو ملف إعدادات)
-                latest_version = "1.0.1"  # مثال للإصدار الجديد
-                urlupdate="https://drive.google.com/file/d/1z4Izg8bE-InxH6OJTqE3u56U-Ey4HLNQ/view?usp=drive_link"
+          
+                latest_version = "1.0.2" 
+                urlupdate="https://play.google.com/store/apps/details?id=com.mycompany.igloo"
                 response = {
                     'action': 'app_update',
-                    'urlupdate':urlupdate,  # تحديد نوع الرسالة كإصدار جديد
-                    'version': latest_version    # إرسال الإصدار الأحدث
+                    'urlupdate':urlupdate, 
+                    'version': latest_version   
                 }
                 await websocket.send(json.dumps(response))
 
@@ -197,11 +197,11 @@ async def handle_connection(websocket, path):
 
             elif data['action'] == 'update_item':
                     item_id = data.get('item_id')
-                    updated_name = data.get('updated_name')  # الاسم الجديد
-                    updated_quantity = data.get('updated_quantity')  # الكمية الجديدة
-                    added_quantity = data.get('added_quantity', 0)  # الإضافة على الكمية الحالية (افتراضي = 0)
+                    updated_name = data.get('updated_name') 
+                    updated_quantity = data.get('updated_quantity')  
+                    added_quantity = data.get('added_quantity', 0)  
 
-                    # التحقق من أن العنصر موجود
+                
                     cursor.execute("SELECT name, quantity FROM products WHERE id = %s", (item_id,))
                     item = cursor.fetchone()
 
@@ -211,9 +211,9 @@ async def handle_connection(websocket, path):
                             'message': 'Item not found',
                         }
                     else:
-                        current_name, current_quantity = item  # القيم الحالية
+                        current_name, current_quantity = item  
 
-                        # تحديث القيم بناءً على البيانات المرسلة
+                   
                         new_name = updated_name if updated_name else current_name
                         new_quantity = (updated_quantity if updated_quantity is not None else current_quantity) + added_quantity
 
@@ -249,9 +249,11 @@ ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 ssl_context.load_cert_chain(certfile="server.crt",
                             keyfile="server.key")
 
-start_server = websockets.serve(handle_connection, server_config['host'], server_config['port'])
+async def main():
+    print(f"Server starting on {server_config['host']}:{server_config['port']}")
+    async with websockets.serve(handle_connection, server_config['host'], server_config['port']):
+        print("Server is running...")
+        await asyncio.Future()  # تشغيل دائم (انتظار لا نهائي)
 
-print(f"Server started on {server_config['host']}:{server_config['port']}")
-
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
+if __name__ == "__main__":
+    asyncio.run(main())
