@@ -6,6 +6,8 @@ import uuid
 import ssl
 from mysql.connector import Error
 
+
+
 # تحميل الإعدادات من ملف JSON
 with open('setting.json') as config_file:
     config = json.load(config_file)
