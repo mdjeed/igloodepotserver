@@ -1,117 +1,171 @@
-# server.py (DEBUG)
-import asyncio, websockets, mysql.connector, json, uuid, os, traceback, sys
+import asyncio
+import websockets
+import mysql.connector
+import json
+import uuid
+import os
 from mysql.connector import Error
 
-# طباعة كل شيء إلى stdout
-def log(*args, **kwargs):
-    print(*args, **kwargs)
-    sys.stdout.flush()
 
-# قراءة الإعدادات
-try:
-    with open('setting.json') as f:
-        config = json.load(f)
-except Exception as e:
-    log("ERROR: cannot read setting.json:", e)
-    config = {"database": {}}
+# ==========================
+# تحميل الإعدادات
+# ==========================
+with open('setting.json') as config_file:
+    config = json.load(config_file)
 
-db_config = config.get('database', {})
-HOST_ENV = os.getenv("HOST", "0.0.0.0")
-PORT_ENV = int(os.getenv("PORT", os.getenv("PORT", "0") or 0))  # Railway يعطينا PORT env
+db_config = config['database']
 
-log("ENV VARS:", {k: os.getenv(k) for k in ["PORT", "RAILWAY_ENV", "RAILWAY_STATIC_URL"] if os.getenv(k)})
-log("server will bind to HOST:", HOST_ENV, "PORT(env):", PORT_ENV)
+# 📌 Railway يعطي PORT أوتوماتيك
+PORT = int(os.getenv("PORT", config["server"]["port"]))
+HOST = "0.0.0.0"
 
-# DB connection helpers
+print("ENV VARS:", os.environ)
+
+
+# ==========================
+# DB
+# ==========================
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host=db_config.get('host', os.getenv("DB_HOST")),
-            port=int(db_config.get('port', os.getenv("DB_PORT") or 3306)),
-            user=db_config.get('user', os.getenv("DB_USER")),
-            password=db_config.get('password', os.getenv("DB_PASS")),
-            database=db_config.get('database', os.getenv("DB_NAME"))
+            host=db_config['host'],
+            user=db_config['user'],
+            password=db_config['password'],
+            database=db_config['database']
         )
-        log("DB connected ok")
         return conn
-    except Exception as e:
-        log("DB connection failed:", e)
+    except Error as e:
+        print(f"MySQL connection error: {e}")
         return None
+
 
 def ensure_connection():
     global db, cursor
     try:
-        if db is None:
-            raise Exception("db is None")
         db.ping(reconnect=True, attempts=3, delay=2)
-    except Exception as e:
-        log("DB ping failed, reconnecting...", e)
+    except:
+        print("⚠️ Lost DB connection, reconnecting...")
         db = get_db_connection()
-        if db:
-            cursor = db.cursor()
-        else:
-            cursor = None
+        cursor = db.cursor()
+
 
 db = get_db_connection()
-cursor = db.cursor() if db else None
+cursor = db.cursor()
 
-# create tables minimal safe (wrapped)
-try:
-    if cursor:
-        cursor.execute('''CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            username VARCHAR(255) NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            token VARCHAR(255)
-        )''')
-        db.commit()
-        log("Ensure users table exists")
-except Exception:
-    log("Warning: create table failed:", traceback.format_exc())
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255),
+    password VARCHAR(255),
+    token VARCHAR(255)
+)
+""")
+db.commit()
 
-# handler
-async def handle_connection(websocket):
-    log("New websocket connection from:", websocket.remote_address)
+
+# ==========================
+# WebSocket Handler
+# ==========================
+async def handle_connection(websocket, path):
     try:
+        print("Client connected:", websocket.remote_address)
+
         async for message in websocket:
-            log("RCV:", message)
             ensure_connection()
-            try:
-                data = json.loads(message)
-            except Exception:
-                await websocket.send(json.dumps({"status":"error","message":"invalid json"}))
-                continue
-
+            data = json.loads(message)
             action = data.get("action")
-            if action == "ping":
-                await websocket.send(json.dumps({"pong": True}))
-            elif action == "check_db":
-                if cursor:
-                    try:
-                        cursor.execute("SELECT 1")
-                        await websocket.send(json.dumps({"db": "ok"}))
-                    except Exception as e:
-                        await websocket.send(json.dumps({"db": "error", "detail": str(e)}))
+
+            # Login
+            if action == "login":
+                cursor.execute(
+                    "SELECT * FROM mstkhdm_igloo WHERE username=%s AND password=%s",
+                    (data["username"], data["password"])
+                )
+                user = cursor.fetchone()
+
+                if user:
+                    token = str(uuid.uuid4())
+                    cursor.execute("UPDATE mstkhdm_igloo SET token=%s WHERE id=%s", (token, user[0]))
+                    db.commit()
+
+                    await websocket.send(json.dumps({
+                        "status": "success",
+                        "message": "Logged in",
+                        "token": token
+                    }))
                 else:
-                    await websocket.send(json.dumps({"db":"no-cursor"}))
-            else:
-                await websocket.send(json.dumps({"status":"unknown action", "action": action}))
+                    await websocket.send(json.dumps({
+                        "status": "error",
+                        "message": "Invalid login"
+                    }))
 
-    except websockets.exceptions.ConnectionClosedOK:
-        log("client closed normally")
+            # check session
+            elif action == "check_login":
+                cursor.execute("SELECT * FROM mstkhdm_igloo WHERE token=%s", (data["token"],))
+                user = cursor.fetchone()
+
+                if user:
+                    await websocket.send(json.dumps({"status": "success", "username": user[1]}))
+                else:
+                    await websocket.send(json.dumps({"status": "invalid"}))
+
+            # Categories
+            elif action == "get_catego":
+                cursor.execute("SELECT id, name FROM categories")
+                items = cursor.fetchall()
+                await websocket.send(json.dumps({
+                    "status": "catego list",
+                    "categories": [{"id": c[0], "name": c[1]} for c in items]
+                }))
+
+            # Products by category
+            elif action == "get_items_by_category":
+                cursor.execute("SELECT name, id, quantity FROM products WHERE category_id=%s",
+                               (data["category_id"],))
+                items = cursor.fetchall()
+                await websocket.send(json.dumps({
+                    "status": "product list",
+                    "items": [{"name": i[0], "id": i[1], "quantity": i[2]} for i in items]
+                }))
+
+            # Add category
+            elif action == "add_category":
+                cursor.execute("SELECT id FROM categories WHERE name=%s", (data["name"],))
+                exist = cursor.fetchone()
+
+                if exist:
+                    await websocket.send(json.dumps({"status": "exists"}))
+                else:
+                    cursor.execute("INSERT INTO categories (name) VALUES (%s)", (data["name"],))
+                    db.commit()
+                    await websocket.send(json.dumps({"status": "success"}))
+
+            # Update check
+            elif action == "check_update":
+                await websocket.send(json.dumps({
+                    "action": "app_update",
+                    "version": "1.0.2",
+                    "urlupdate": "https://play.google.com/store/apps/details?id=com.mycompany.igloo"
+                }))
+
     except Exception as e:
-        log("handler exception:", traceback.format_exc())
+        print("❌ Error:", e)
 
-# main
+
+# ==========================
+# Run Server (NO SSL)
+# ==========================
 async def main():
-    port = PORT_ENV or int(config.get("server", {}).get("port", 0) or 0) or 8080
-    log("Starting server on 0.0.0.0 port:", port)
-    async with websockets.serve(handle_connection, "0.0.0.0", port):
-        log("websocket serve context entered")
-        await asyncio.Future()
+    print(f"🚀 Starting WebSocket on {HOST}:{PORT}")
+
+    async with websockets.serve(
+        handle_connection,
+        HOST,
+        PORT
+    ):
+        print("Server is ready.")
+        await asyncio.Future()  # Make server run forever
+
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception:
-        log("Fatal error on startup:", traceback.format_exc())
+    asyncio.run(main())
