@@ -4,169 +4,256 @@ import mysql.connector
 import json
 import uuid
 import ssl
-from mysql.connector import Error
 
-# =========================
-# تحميل الإعدادات
-# =========================
 with open('setting.json') as config_file:
     config = json.load(config_file)
 
 db_config = config['database']
 server_config = config['server']
 
+db = mysql.connector.connect(
+    host=db_config['host'],
+    user=db_config['user'],
+    password=db_config['password'],
+    database=db_config['database']
+)
 
-# =========================
-# دالة اتصال آمن بـ MySQL
-# =========================
-def get_db():
-    return mysql.connector.connect(
-        host=db_config['host'],
-        user=db_config['user'],
-        password=db_config['password'],
-        database=db_config['database'],
-        connection_timeout=30,
-        autocommit=True
-    )
+cursor = db.cursor()
 
+cursor.execute('''CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(255) NOT NULL,
+                    password VARCHAR(255) NOT NULL,
+                    token VARCHAR(255)
+                )''')
 
-# =========================
-# WebSocket Handler
-# =========================
+db.commit()
+
 async def handle_connection(websocket):
-    client_ip = websocket.remote_address[0]
-    print(f"Client connected from IP: {client_ip}")
-
     try:
+        client_ip = websocket.remote_address[0]
+        print(f"Client connected from IP: {client_ip}")
         async for message in websocket:
             data = json.loads(message)
 
-            try:
-                db = get_db()
-                cursor = db.cursor()
+            if data['action'] == 'login':
+                username = data['username']
+                password = data['password']
+    
+                
+                cursor.execute('SELECT * FROM mstkhdm_igloo WHERE username=%s AND password=%s', (username, password))
+                user = cursor.fetchone()
 
-                # ================= LOGIN =================
-                if data['action'] == 'login':
+                if user:
+                    token = str(uuid.uuid4()) 
+                    cursor.execute('UPDATE mstkhdm_igloo SET token=%s WHERE id=%s', (token, user[0]))
+                    db.commit()
+                    response = {'status': 'success', 'message': 'Logged in successfully', 'token': token,'name':user[4]}
+                    print(f'User {username} logged in.')
+                else:
+                    response = {'status': 'error', 'message': 'Invalid credentials'}
+                
+                await websocket.send(json.dumps(response))
+
+
+
+
+            
+            elif data['action'] == 'check_login':
+                token = data['token']
+                cursor.execute('SELECT * FROM mstkhdm_igloo WHERE token=%s', (token,))
+                user = cursor.fetchone()
+                
+                if user:
+                    response = {'status': 'success', 'username': user[1]}
+                    print(f'User {user[1]} checked login status.')
+                else:
+                    response = {'status': 'errorlog', 'message': 'Invalid session'}
+                
+                await websocket.send(json.dumps(response))
+
+
+
+            elif data['action'] == 'get_catego':
+                cursor.execute("SELECT id, name FROM categories")  
+                items = cursor.fetchall()
+              
+                items_list = [{'id': item[0], 'name': item[1]} for item in items]  
+                await websocket.send(json.dumps({"status": "catego list", "categories": items_list}))
+
+            
+            elif data['action'] == 'get_items_by_category':
+                categoryid = data['category_id'] 
+                cursor.execute("SELECT name, id, quantity FROM products WHERE category_id = %s", (categoryid,))
+                products = cursor.fetchall()
+
+                products_list = [{'name': product[0], 'id': product[1], 'quantity': product[2]} for product in products]
+
+                await websocket.send(json.dumps({"status": "product list", "items": products_list}))
+
+
+
+
+            elif data['action'] == 'add_product':
+                productname = data['name'] 
+                quantityproduct = data['quantity']
+                categoryid = data['category_id']
+
+          
+                cursor.execute("SELECT quantity FROM products WHERE name = %s AND category_id = %s", (productname, categoryid))
+                result = cursor.fetchone()
+
+                if result:
+                   
+                    current_quantity = result[0]
+                    new_quantity = current_quantity + quantityproduct
+                    cursor.execute("UPDATE products SET quantity = %s WHERE name = %s AND category_id = %s", (new_quantity, productname, categoryid))
+                else:
+                   
+                    cursor.execute("INSERT INTO products (name, quantity, category_id) VALUES (%s, %s, %s)", (productname, quantityproduct, categoryid))
+                
+                db.commit()
+                await websocket.send(json.dumps({"status": "product list"}))
+
+
+
+
+
+            elif data['action'] == 'selcteditem':
+                items = data['itemsSelected']
+                date = data['date']
+                added_by = data.get('added_by')  
+                company = data.get('company') 
+
+                for item in items:
+                    name = item['name']
+                    quantity = item['counter']
+                    
+                   
                     cursor.execute(
-                        "SELECT id, username FROM mstkhdm_igloo WHERE username=%s AND password=%s",
-                        (data['username'], data['password'])
+                        "INSERT INTO inventory (item_name, quantity, date, added_by, company) VALUES (%s, %s, %s, %s,%s)",
+                        (name, quantity, date, added_by,company)   
                     )
-                    user = cursor.fetchone()
+                    db.commit()
+                    
+                    cursor.execute("UPDATE products SET quantity = quantity - %s WHERE name = %s AND quantity >= %s",
+                                (quantity, name, quantity))
+                    db.commit()
 
-                    if user:
-                        token = str(uuid.uuid4())
-                        cursor.execute(
-                            "UPDATE mstkhdm_igloo SET token=%s WHERE id=%s",
-                            (token, user[0])
-                        )
+                categoryid = data.get('category_id')
+                cursor.execute("SELECT name, id, quantity FROM products WHERE category_id = %s", (categoryid,))
+                products = cursor.fetchall()
+
+                products_list = [{'name': product[0], 'id': product[1], 'quantity': product[2]} for product in products]
+                
+                await websocket.send(json.dumps({"status": "get_items_by_category", "items": products_list}))
+
+
+                                
+
+
+
+            elif data['action'] == 'getselecteditem':
+                cursor.execute("SELECT date, item_name, quantity, added_by , company FROM inventory") 
+                sel3adate = cursor.fetchall()
+                
+                items_info = [{'date': row[0].strftime('%Y-%m-%d'), 'name': row[1], 'quantity': row[2], 'added_by': row[3],'company':row[4]} for row in sel3adate]
+
+                websocket_message = {
+                    'action': 'send_items_info',
+                    'itemsout': items_info
+                }
+                await websocket.send(json.dumps(websocket_message))
+
+
+            elif data['action'] == 'check_update':
+          
+                latest_version = "1.0.2" 
+                urlupdate="https://play.google.com/store/apps/details?id=com.mycompany.igloo"
+                response = {
+                    'action': 'app_update',
+                    'urlupdate':urlupdate, 
+                    'version': latest_version   
+                }
+                await websocket.send(json.dumps(response))
+
+
+            elif data['action'] == 'add_category':
+                            category_name = data['name']
+                            
+                            
+                            cursor.execute("SELECT id FROM categories WHERE name = %s", (category_name,))
+                            existing_category = cursor.fetchone()
+
+                            if existing_category:
+                                response = {"status": "error", "message": "Category already exists"}
+                            else:
+                                cursor.execute("INSERT INTO categories (name) VALUES (%s)", (category_name,))
+                                db.commit()
+                                response = {"status": "success", "message": "Category added successfully"}
+                            
+                            await websocket.send(json.dumps(response))
+
+
+            elif data['action'] == 'update_item':
+                    item_id = data.get('item_id')
+                    updated_name = data.get('updated_name') 
+                    updated_quantity = data.get('updated_quantity')  
+                    added_quantity = data.get('added_quantity', 0)  
+
+                
+                    cursor.execute("SELECT name, quantity FROM products WHERE id = %s", (item_id,))
+                    item = cursor.fetchone()
+
+                    if not item:
                         response = {
-                            'status': 'success',
-                            'token': token,
-                            'username': user[1]
+                            'status': 'error',
+                            'message': 'Item not found',
                         }
                     else:
-                        response = {'status': 'error', 'message': 'Invalid credentials'}
+                        current_name, current_quantity = item  
+
+                   
+                        new_name = updated_name if updated_name else current_name
+                        new_quantity = (updated_quantity if updated_quantity is not None else current_quantity) + added_quantity
+
+                        cursor.execute("""
+                            UPDATE products
+                            SET name = %s, quantity = %s
+                            WHERE id = %s
+                        """, (new_name, new_quantity, item_id))
+                        db.commit()
+
+                        response = {
+                            'status': 'update_success',
+                            'item_id': item_id,
+                            'updated_name': new_name,
+                            'updated_quantity': new_quantity,
+                        }
 
                     await websocket.send(json.dumps(response))
 
-                # ================= CHECK LOGIN =================
-                elif data['action'] == 'check_login':
-                    cursor.execute(
-                        "SELECT username FROM mstkhdm_igloo WHERE token=%s",
-                        (data['token'],)
-                    )
-                    user = cursor.fetchone()
-
-                    if user:
-                        response = {'status': 'success', 'username': user[0]}
-                    else:
-                        response = {'status': 'errorlog'}
-
-                    await websocket.send(json.dumps(response))
-
-                # ================= GET CATEGORIES =================
-                elif data['action'] == 'get_catego':
-                    cursor.execute("SELECT id, name FROM categories")
-                    categories = cursor.fetchall()
-
-                    await websocket.send(json.dumps({
-                        "status": "catego list",
-                        "categories": [{'id': i[0], 'name': i[1]} for i in categories]
-                    }))
-
-                # ================= GET PRODUCTS =================
-                elif data['action'] == 'get_items_by_category':
-                    cursor.execute(
-                        "SELECT id, name, quantity FROM products WHERE category_id=%s",
-                        (data['category_id'],)
-                    )
-                    products = cursor.fetchall()
-
-                    await websocket.send(json.dumps({
-                        "status": "product list",
-                        "items": [{'id': p[0], 'name': p[1], 'quantity': p[2]} for p in products]
-                    }))
-
-                # ================= ADD PRODUCT =================
-                elif data['action'] == 'add_product':
-                    cursor.execute(
-                        "INSERT INTO products (name, quantity, category_id) VALUES (%s,%s,%s)",
-                        (data['name'], data['quantity'], data['category_id'])
-                    )
-                    await websocket.send(json.dumps({"status": "success"}))
-
-                # ================= UPDATE ITEM =================
-                elif data['action'] == 'update_item':
-                    cursor.execute(
-                        "UPDATE products SET name=%s, quantity=%s WHERE id=%s",
-                        (data['updated_name'], data['updated_quantity'], data['item_id'])
-                    )
-                    await websocket.send(json.dumps({"status": "update_success"}))
-
-                # ================= APP UPDATE =================
-                elif data['action'] == 'check_update':
-                    await websocket.send(json.dumps({
-                        'action': 'app_update',
-                        'version': '1.0.2',
-                        'urlupdate': 'https://play.google.com/store/apps/details?id=com.mycompany.igloo'
-                    }))
-
-            except Error as e:
-                print("DB Error:", e)
-                await websocket.send(json.dumps({
-                    'status': 'error',
-                    'message': 'Database error'
-                }))
-
-            finally:
-                if cursor:
-                    cursor.close()
-                if db:
-                    db.close()
-
-    except websockets.exceptions.ConnectionClosed:
-        print("Client disconnected")
 
 
-# =========================
-# SSL
-# =========================
+
+
+
+
+    except websockets.exceptions.ConnectionClosedOK:
+        print("Connection closed normally")
+    except websockets.exceptions.ConnectionClosedError as e:
+        print(f"Connection closed with error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-ssl_context.load_cert_chain("server.crt", "server.key")
+ssl_context.load_cert_chain(certfile="server.crt",
+                            keyfile="server.key")
 
-
-# =========================
-# Run Server
-# =========================
 async def main():
-    print(f"Server running on {server_config['host']}:{server_config['port']}")
-    async with websockets.serve(
-        handle_connection,
-        server_config['host'],
-        server_config['port'],
-        ssl=ssl_context
-    ):
-        await asyncio.Future()
+    print(f"Server starting on {server_config['host']}:{server_config['port']}")
+    async with websockets.serve(handle_connection, server_config['host'], server_config['port']):
+        print("Server is running...")
+        await asyncio.Future()  # تشغيل دائم (انتظار لا نهائي)
 
 if __name__ == "__main__":
     asyncio.run(main())
