@@ -1,9 +1,9 @@
 {
     "database": {
-      "host": "localhost",
+      "host": "mysql.railway.internal",
       "user": "root",
-      "password": "moha",
-      "database": "igloo_depot"
+      "password": "qEratWswHVFoxceHVgnrPWfWvuXOVqtJ",
+      "database": "railway"
     },
     "server": {
       "host": "0.0.0.0",
