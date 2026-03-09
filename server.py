@@ -195,6 +195,16 @@ async def handle_connection(websocket):
                             await websocket.send(json.dumps(response))
 
 
+
+            
+            elif data['action'] == 'ping':
+               await websocket.send(json.dumps({'action': 'pong'}))
+
+
+
+
+            
+
             elif data['action'] == 'update_item':
                     item_id = data.get('item_id')
                     updated_name = data.get('updated_name') 
