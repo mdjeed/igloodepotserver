@@ -4,7 +4,7 @@ import mysql.connector
 import json
 import uuid
 import ssl
-سشيسيش
+
 with open('setting.json') as config_file:
     config = json.load(config_file)
 
