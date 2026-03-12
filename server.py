@@ -198,7 +198,9 @@ async def handle_connection(websocket):
 
             
             elif data['action'] == 'ping':
+               print('pong')
                await websocket.send(json.dumps({'action': 'pong'}))
+               
 
 
 
