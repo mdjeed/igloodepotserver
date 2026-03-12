@@ -5,7 +5,7 @@ import json
 import uuid
 import ssl
 
-
+لالالالالالالالا
 with open('setting.json') as config_file:
     config = json.load(config_file)
 
