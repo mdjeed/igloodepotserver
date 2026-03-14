@@ -206,14 +206,14 @@ async def handle_connection(websocket):
             
   
 
-            elif data['action'] == 'get_branch':
-                 cursor.execute("SELECT id, branchnname FROM Branches")  
-                 items = cursor.fetchall()
-              
-                items_list = [{'id': item[0], 'name': item[1]} for item in items]  
-                await websocket.send(json.dumps({"status": "branch_list", "branches": items_list}))
-                
-            
+           
+            elif data['action'] == 'add_branch':
+                branchname=data['branch_name']
+                cursor.execute("INSERT INTO Branches (name) VALUES (%s)", (branchname,))
+                db.commit()
+                response = {"status": "addbranchsuccess"}
+                await websocket.send(json.dumps(response))
+                 
                 
 
 
