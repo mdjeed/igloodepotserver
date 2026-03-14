@@ -215,7 +215,13 @@ async def handle_connection(websocket):
                 await websocket.send(json.dumps(response))
                  
                 
-
+            elif data['action'] == 'get_branch':
+                 cursor.execute("SELECT id, branchname FROM Branches")  
+                 items = cursor.fetchall()
+              
+                items_list = [{'id': item[0], 'name': item[1]} for item in items]  
+                await websocket.send(json.dumps({"status": "branch_list", "branches": items_list}))
+                
 
 
             
