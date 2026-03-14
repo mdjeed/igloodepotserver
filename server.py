@@ -213,7 +213,7 @@ async def handle_connection(websocket):
                 
 
             elif data['action'] == 'get_branch':
-                 cursor.execute("SELECT id, name FROM Branches")  
+                 cursor.execute("SELECT id, branchnname FROM Branches")  
                  items = cursor.fetchall()
               
                 items_list = [{'id': item[0], 'name': item[1]} for item in items]  
