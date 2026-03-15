@@ -219,7 +219,7 @@ async def handle_connection(websocket):
                  cursor.execute("SELECT id, branchname FROM Branches")  
                  items = cursor.fetchall()
               
-                 items_list = [{'id': item[0], 'name': item[1]} for item in items]  
+                 items_list = [{'id': item[0], 'branchname': item[1]} for item in items]  
                  await websocket.send(json.dumps({"status": "branch_list", "branches": items_list}))
                     
 
