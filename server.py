@@ -231,7 +231,7 @@ async def handle_connection(websocket):
                         SELECT DISTINCT
                         categories.id,
                         categories.name
-                        FROM categories
+                        FROM Branch_Items
                 
                         JOIN products
                         ON Branch_Items.item_id = products.id
@@ -248,7 +248,7 @@ async def handle_connection(websocket):
                         {'id': item[0], 'name': item[1]}
                         for item in items
                     ]
-                
+                    print(items_list)
                     await websocket.send(json.dumps({
                         "status": "category_list",
                         "categories": items_list
