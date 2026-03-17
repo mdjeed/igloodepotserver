@@ -236,7 +236,7 @@ async def handle_connection(websocket):
                         JOIN products
                         ON Branch_Items.item_id = products.id
                 
-                        JOIN Categories
+                        JOIN categories
                         ON products.category_id = categories.id
                 
                         WHERE Branch_Items.branch_id = %s
