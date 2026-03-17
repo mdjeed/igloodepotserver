@@ -223,6 +223,36 @@ async def handle_connection(websocket):
                  await websocket.send(json.dumps({"status": "branch_list", "branches": items_list}))
                     
 
+            elif data['action'] == 'get_categories_by_branch':
+
+                    branch_id = data['branch_id']
+                
+                    cursor.execute("""
+                        SELECT DISTINCT
+                        Categories.id,
+                        Categories.category_name
+                        FROM Branch_Items
+                
+                        JOIN Items
+                        ON Branch_Items.item_id = Items.id
+                
+                        JOIN Categories
+                        ON Items.category_id = Categories.id
+                
+                        WHERE Branch_Items.branch_id = %s
+                    """, (branch_id,))
+                
+                    items = cursor.fetchall()
+                
+                    items_list = [{'id': item[0], 'category_name': item[1]} for item in items]
+                
+                    await websocket.send(json.dumps({
+                        "status": "category_list",
+                        "categories": items_list
+                            }))
+                
+                
+                            
 
             
 
