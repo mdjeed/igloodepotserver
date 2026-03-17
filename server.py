@@ -229,15 +229,15 @@ async def handle_connection(websocket):
     
                     cursor.execute("""
                         SELECT DISTINCT
-                        Categories.id,
-                        Categories.name
+                        categories.id,
+                        categories.name
                         FROM Branch_Items
                 
                         JOIN products
                         ON Branch_Items.item_id = products.id
                 
                         JOIN Categories
-                        ON products.category_id = Categories.id
+                        ON products.category_id = categories.id
                 
                         WHERE Branch_Items.branch_id = %s
                     """, (branch_id,))
