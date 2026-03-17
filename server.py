@@ -231,7 +231,7 @@ async def handle_connection(websocket):
                         SELECT DISTINCT
                         categories.id,
                         categories.name
-                        FROM Branch_Items
+                        FROM categories
                 
                         JOIN products
                         ON Branch_Items.item_id = products.id
