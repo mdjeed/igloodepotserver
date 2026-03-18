@@ -221,7 +221,47 @@ async def handle_connection(websocket):
               
                  items_list = [{'id': item[0], 'branchname': item[1]} for item in items]  
                  await websocket.send(json.dumps({"status": "branch_list", "branches": items_list}))
+
+            
+
+            elif data['action'] == 'get_items_bybranchandcatego':
                     
+                        branch_id = data['branch_id']
+                        category_id = data['category_id']
+                    
+                        cursor.execute("""
+                            SELECT
+                            products.id,
+                            products.name,
+                            Branch_Items.quantity
+                            FROM Branch_Items
+                    
+                            JOIN products
+                            ON Branch_Items.item_id = products.id
+                    
+                            WHERE Branch_Items.branch_id = %s
+                            AND products.category_id = %s
+                        """, (branch_id, category_id))
+                    
+                        rows = cursor.fetchall()
+                    
+                        items = [
+                            {
+                                "id": row[0],
+                                "name": row[1],
+                                "quantity": row[2]
+                            }
+                            for row in rows
+                        ]
+                    
+                        await websocket.send(json.dumps({
+                            "status": "items_list",
+                            "items": items
+                        }))
+                                
+                                
+                     
+                                
 
             elif data['action'] == 'get_categories_by_branch':
 
@@ -254,9 +294,9 @@ async def handle_connection(websocket):
                         "categories": items_list
                     }))
                                                         
-                                
-    
-                
+
+
+                       
 
             elif data['action'] == 'update_item':
                     item_id = data.get('item_id')
