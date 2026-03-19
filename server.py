@@ -222,7 +222,46 @@ async def handle_connection(websocket):
                  items_list = [{'id': item[0], 'branchname': item[1]} for item in items]  
                  await websocket.send(json.dumps({"status": "branch_list", "branches": items_list}))
 
-            
+            elif data['action'] == 'get_items_all_branches':
+
+                    category_id = data['category_id']
+                
+                    cursor.execute("""
+                        SELECT
+                        products.id,
+                        products.name,
+                        SUM(Branch_Items.quantity) AS total_quantity
+                
+                        FROM Branch_Items
+                
+                        JOIN products
+                        ON Branch_Items.item_id = products.id
+                
+                        WHERE products.category_id = %s
+                
+                        GROUP BY
+                        products.id,
+                        products.name
+                
+                        ORDER BY products.name
+                    """, (category_id,))
+                
+                    rows = cursor.fetchall()
+                
+                    items = [
+                        {
+                            "id": row[0],
+                            "name": row[1],
+                            "quantity": int(row[2])
+                        }
+                        for row in rows
+                    ]
+                
+                    await websocket.send(json.dumps({
+                        "status": "items_list_all",
+                        "items": items
+                    }))
+                            
 
             elif data['action'] == 'get_items_bybranchandcatego':
                     
