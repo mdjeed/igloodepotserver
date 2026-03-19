@@ -288,7 +288,7 @@ async def handle_connection(websocket):
                         {'id': item[0], 'name': item[1]}
                         for item in items
                     ]
-                    print(items_list)
+                    
                     await websocket.send(json.dumps({
                         "status": "category_list",
                         "categories": items_list
