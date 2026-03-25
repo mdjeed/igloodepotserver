@@ -120,72 +120,56 @@ async def handle_connection(websocket):
 
 
 
-            elif data['action'] == 'selcteditem':
+            elif data['action'] == 'selecteditem':
             
-                    items = data['itemsSelected']
-                    date = data['date']
-                    added_by = data.get('added_by')
-                    company = data.get('company')
-                    branch_id = data['branch_id'] 
-                
-                    for item in items:
-                        item_id = item['id']          
-                        name = item['name']
-                        quantity = item['counter']
-                
-                  
-                        cursor.execute("""
-                            INSERT INTO inventory (item_name, quantity, date, added_by, company)
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (name, quantity, date, added_by, company))
-                
-     
-                        cursor.execute("""
-                            UPDATE Branch_Items
-                            SET quantity = quantity - %s
-                            WHERE branch_id = %s 
-                            AND item_id = %s
-                            AND quantity >= %s
-                        """, (quantity, branch_id, item_id, quantity))
-                
-                    db.commit()
-                
-     
-                    categoryid = data.get('category_id')
-                
+                items = data['itemsSelected']
+                branch_id = data['branch_id']
+            
+                not_available = []
+            
+                for item in items:
+                    item_id = item['id']
+                    quantity = item['counter']
+            
                     cursor.execute("""
-                        SELECT
-                        products.name,
-                        products.id,
-                        Branch_Items.quantity
-                
-                        FROM Branch_Items
-                
-                        JOIN products
-                        ON Branch_Items.item_id = products.id
-                
-                        WHERE Branch_Items.branch_id = %s
-                        AND products.category_id = %s
-                    """, (branch_id, categoryid))
-                
-                    products = cursor.fetchall()
-                
-                    products_list = [
-                        {
-                            'name': product[0],
-                            'id': product[1],
-                            'quantity': product[2]
-                        }
-                        for product in products
-                    ]
-                
+                        SELECT quantity FROM Branch_Items
+                        WHERE branch_id = %s AND item_id = %s
+                    """, (branch_id, item_id))
+            
+                    result = cursor.fetchone()
+            
+                    if result is None or result[0] < quantity:
+                        not_available.append(item['name'])
+            
+                if not_available:
                     await websocket.send(json.dumps({
-                        "status": "get_items_by_category",
-                        "items": products_list
+                        "status": "not_available",
+                        "items": not_available
                     }))
-                    print('heloo')
-
-                                
+                    return  # 🔥 وقف التنفيذ
+            
+                for item in items:
+                    item_id = item['id']
+                    name = item['name']
+                    quantity = item['counter']
+            
+                    cursor.execute("""
+                        UPDATE Branch_Items
+                        SET quantity = quantity - %s
+                        WHERE branch_id = %s AND item_id = %s
+                    """, (quantity, branch_id, item_id))
+            
+                    cursor.execute("""
+                        INSERT INTO inventory (item_name, quantity)
+                        VALUES (%s, %s)
+                    """, (name, quantity))
+            
+                db.commit()
+            
+                await websocket.send(json.dumps({
+                    "status": "success"
+                }))
+                                            
 
 
 
