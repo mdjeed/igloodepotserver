@@ -121,34 +121,68 @@ async def handle_connection(websocket):
 
 
             elif data['action'] == 'selcteditem':
+            
                 items = data['itemsSelected']
                 date = data['date']
-                added_by = data.get('added_by')  
-                company = data.get('company') 
-
+                added_by = data.get('added_by')
+                company = data.get('company')
+                branch_id = data['branch_id'] 
+            
                 for item in items:
+                    item_id = item['id']          
                     name = item['name']
                     quantity = item['counter']
-                    
-                   
-                    cursor.execute(
-                        "INSERT INTO inventory (item_name, quantity, date, added_by, company) VALUES (%s, %s, %s, %s,%s)",
-                        (name, quantity, date, added_by,company)   
-                    )
-                    db.commit()
-                    
-                    cursor.execute("UPDATE products SET quantity = quantity - %s WHERE name = %s AND quantity >= %s",
-                                (quantity, name, quantity))
-                    db.commit()
-
+            
+              
+                    cursor.execute("""
+                        INSERT INTO inventory (item_name, quantity, date, added_by, company)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (name, quantity, date, added_by, company))
+            
+ 
+                    cursor.execute("""
+                        UPDATE Branch_Items
+                        SET quantity = quantity - %s
+                        WHERE branch_id = %s 
+                        AND item_id = %s
+                        AND quantity >= %s
+                    """, (quantity, branch_id, item_id, quantity))
+            
+                db.commit()
+            
+ 
                 categoryid = data.get('category_id')
-                cursor.execute("SELECT name, id, quantity FROM products WHERE category_id = %s", (categoryid,))
+            
+                cursor.execute("""
+                    SELECT
+                    products.name,
+                    products.id,
+                    Branch_Items.quantity
+            
+                    FROM Branch_Items
+            
+                    JOIN products
+                    ON Branch_Items.item_id = products.id
+            
+                    WHERE Branch_Items.branch_id = %s
+                    AND products.category_id = %s
+                """, (branch_id, categoryid))
+            
                 products = cursor.fetchall()
-
-                products_list = [{'name': product[0], 'id': product[1], 'quantity': product[2]} for product in products]
-                
-                await websocket.send(json.dumps({"status": "get_items_by_category", "items": products_list}))
-
+            
+                products_list = [
+                    {
+                        'name': product[0],
+                        'id': product[1],
+                        'quantity': product[2]
+                    }
+                    for product in products
+                ]
+            
+                await websocket.send(json.dumps({
+                    "status": "get_items_by_category",
+                    "items": products_list
+                }))
 
                                 
 
