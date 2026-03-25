@@ -120,7 +120,7 @@ async def handle_connection(websocket):
 
 
 
-            elif data['action'] == 'selecteditem':
+            elif data['action'] == 'selcteditem':
             
                 items = data['itemsSelected']
                 branch_id = data['branch_id']
@@ -166,9 +166,7 @@ async def handle_connection(websocket):
             
                 db.commit()
             
-                await websocket.send(json.dumps({
-                    "status": "success"
-                }))
+                
                                             
 
 
