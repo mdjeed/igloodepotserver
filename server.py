@@ -124,6 +124,9 @@ async def handle_connection(websocket):
             
                 items = data['itemsSelected']
                 branch_id = data['branch_id']
+                date = data['date']                
+                added_by = data.get('added_by')
+                company = data.get('company')
             
                 not_available = []
             
@@ -146,28 +149,29 @@ async def handle_connection(websocket):
                         "status": "not_available",
                         "items": not_available
                     }))
-                    return  # 🔥 وقف التنفيذ
+                    return
             
                 for item in items:
                     item_id = item['id']
                     name = item['name']
                     quantity = item['counter']
             
+                
                     cursor.execute("""
                         UPDATE Branch_Items
                         SET quantity = quantity - %s
                         WHERE branch_id = %s AND item_id = %s
                     """, (quantity, branch_id, item_id))
             
+            
                     cursor.execute("""
-                        INSERT INTO inventory (item_name, quantity)
-                        VALUES (%s, %s)
-                    """, (name, quantity))
+                        INSERT INTO inventory (item_name, quantity, date, added_by, company)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (name, quantity, date, added_by, company))
             
                 db.commit()
-            
-                
-                                            
+                            
+                                                        
 
 
 
