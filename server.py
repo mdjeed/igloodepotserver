@@ -223,6 +223,75 @@ async def handle_connection(websocket):
                print('pong')
                await websocket.send(json.dumps({'action': 'pong'}))
 
+            
+            elif data['action'] == 'update_item':
+    
+                    item_id = data.get('item_id')
+                    branch_id = data.get('branch_id')  # 🔥 مهم جداً
+                
+                    updated_name = data.get('updated_name') 
+                    updated_quantity = data.get('updated_quantity')  
+                    added_quantity = data.get('added_quantity', 0)  
+                
+                    # 🔍 تحقق أن العنصر موجود
+                    cursor.execute("SELECT name FROM products WHERE id = %s", (item_id,))
+                    item = cursor.fetchone()
+                
+                    if not item:
+                        response = {
+                            'status': 'error',
+                            'message': 'Item not found',
+                        }
+                
+                    else:
+                        original_name = item[0]
+                
+                        # 🔥 جلب بيانات الفرع
+                        cursor.execute("""
+                            SELECT quantity, custom_name FROM Branch_Items
+                            WHERE branch_id = %s AND item_id = %s
+                        """, (branch_id, item_id))
+                
+                        branch_item = cursor.fetchone()
+                
+                        if not branch_item:
+                            response = {
+                                'status': 'error',
+                                'message': 'Item not موجود في هذا الفرع',
+                            }
+                
+                        else:
+                            current_quantity, current_custom_name = branch_item
+                
+                            # 🔥 حساب الكمية الجديدة
+                            new_quantity = (
+                                updated_quantity if updated_quantity is not None else current_quantity
+                            ) + added_quantity
+                
+                            # 🔥 تحديد الاسم الجديد (custom_name)
+                            new_name = updated_name if updated_name else current_custom_name
+                
+                            # ✅ تحديث في Branch_Items فقط
+                            cursor.execute("""
+                                UPDATE Branch_Items
+                                SET quantity = %s,
+                                    custom_name = %s
+                                WHERE branch_id = %s AND item_id = %s
+                            """, (new_quantity, new_name, branch_id, item_id))
+                
+                            db.commit()
+                
+                            response = {
+                                'status': 'update_success',
+                                'item_id': item_id,
+                                'branch_id': branch_id,
+                                'updated_name': new_name if new_name else original_name,
+                                'updated_quantity': new_quantity,
+                            }
+                
+                    await websocket.send(json.dumps(response))
+                
+                
 
             
   
@@ -357,75 +426,6 @@ async def handle_connection(websocket):
 
 
                        
-
-            elif data['action'] == 'update_item':
-    
-                    item_id = data.get('item_id')
-                    branch_id = data.get('branch_id')  # 🔥 مهم جداً
-                
-                    updated_name = data.get('updated_name') 
-                    updated_quantity = data.get('updated_quantity')  
-                    added_quantity = data.get('added_quantity', 0)  
-                
-                    # 🔍 تحقق أن العنصر موجود
-                    cursor.execute("SELECT name FROM products WHERE id = %s", (item_id,))
-                    item = cursor.fetchone()
-                
-                    if not item:
-                        response = {
-                            'status': 'error',
-                            'message': 'Item not found',
-                        }
-                
-                    else:
-                        original_name = item[0]
-                
-                        # 🔥 جلب بيانات الفرع
-                        cursor.execute("""
-                            SELECT quantity, custom_name FROM Branch_Items
-                            WHERE branch_id = %s AND item_id = %s
-                        """, (branch_id, item_id))
-                
-                        branch_item = cursor.fetchone()
-                
-                        if not branch_item:
-                            response = {
-                                'status': 'error',
-                                'message': 'Item not موجود في هذا الفرع',
-                            }
-                
-                        else:
-                            current_quantity, current_custom_name = branch_item
-                
-                            # 🔥 حساب الكمية الجديدة
-                            new_quantity = (
-                                updated_quantity if updated_quantity is not None else current_quantity
-                            ) + added_quantity
-                
-                            # 🔥 تحديد الاسم الجديد (custom_name)
-                            new_name = updated_name if updated_name else current_custom_name
-                
-                            # ✅ تحديث في Branch_Items فقط
-                            cursor.execute("""
-                                UPDATE Branch_Items
-                                SET quantity = %s,
-                                    custom_name = %s
-                                WHERE branch_id = %s AND item_id = %s
-                            """, (new_quantity, new_name, branch_id, item_id))
-                
-                            db.commit()
-                
-                            response = {
-                                'status': 'update_success',
-                                'item_id': item_id,
-                                'branch_id': branch_id,
-                                'updated_name': new_name if new_name else original_name,
-                                'updated_quantity': new_quantity,
-                            }
-                
-                    await websocket.send(json.dumps(response))
-                
-                
 
 
 
