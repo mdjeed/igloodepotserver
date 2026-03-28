@@ -319,7 +319,7 @@ async def handle_connection(websocket):
                     cursor.execute("""
                         SELECT
                         products.id,
-                        products.name,
+                        COALESCE(Branch_Items.custom_name, products.name) AS name,
                         SUM(Branch_Items.quantity) AS total_quantity
                 
                         FROM Branch_Items
@@ -361,7 +361,7 @@ async def handle_connection(websocket):
                         cursor.execute("""
                             SELECT
                             products.id,
-                            products.name,
+                            COALESCE(Branch_Items.custom_name, products.name) AS name,
                             Branch_Items.quantity
                             FROM Branch_Items
                     
