@@ -190,7 +190,7 @@ async def handle_connection(websocket):
 
             elif data['action'] == 'check_update':
           
-                latest_version = "1.0.2" 
+                latest_version = "2.0.2" 
                 urlupdate="https://play.google.com/store/apps/details?id=com.mycompany.igloo"
                 response = {
                     'action': 'app_update',
