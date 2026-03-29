@@ -102,7 +102,6 @@ async def handle_connection(websocket):
                 categoryid = data['category_id']
                 branch_id = data['branch_id']  
             
-              تحقق هل المنتج موجود
                 cursor.execute("""
                     SELECT id FROM products
                     WHERE name = %s AND category_id = %s
