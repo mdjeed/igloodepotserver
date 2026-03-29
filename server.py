@@ -96,27 +96,60 @@ async def handle_connection(websocket):
 
 
             elif data['action'] == 'add_product':
-                productname = data['name'] 
+            
+                productname = data['name']
                 quantityproduct = data['quantity']
                 categoryid = data['category_id']
-
-          
-                cursor.execute("SELECT quantity FROM products WHERE name = %s AND category_id = %s", (productname, categoryid))
+                branch_id = data['branch_id']  
+            
+              تحقق هل المنتج موجود
+                cursor.execute("""
+                    SELECT id FROM products
+                    WHERE name = %s AND category_id = %s
+                """, (productname, categoryid))
+            
                 result = cursor.fetchone()
-
+            
                 if result:
-                   
-                    current_quantity = result[0]
-                    new_quantity = current_quantity + quantityproduct
-                    cursor.execute("UPDATE products SET quantity = %s WHERE name = %s AND category_id = %s", (new_quantity, productname, categoryid))
+                    product_id = result[0]
                 else:
-                   
-                    cursor.execute("INSERT INTO products (name, quantity, category_id) VALUES (%s, %s, %s)", (productname, quantityproduct, categoryid))
-                
+            
+                    cursor.execute("""
+                        INSERT INTO products (name, category_id)
+                        VALUES (%s, %s)
+                    """, (productname, categoryid))
+            
+                    product_id = cursor.lastrowid
+            
+                cursor.execute("""
+                    SELECT quantity FROM Branch_Items
+                    WHERE branch_id = %s AND item_id = %s
+                """, (branch_id, product_id))
+            
+                branch_item = cursor.fetchone()
+            
+                if branch_item:
+                    new_quantity = branch_item[0] + quantityproduct
+            
+                    cursor.execute("""
+                        UPDATE Branch_Items
+                        SET quantity = %s
+                        WHERE branch_id = %s AND item_id = %s
+                    """, (new_quantity, branch_id, product_id))
+            
+                else:
+                    cursor.execute("""
+                        INSERT INTO Branch_Items (branch_id, item_id, quantity)
+                        VALUES (%s, %s, %s)
+                    """, (branch_id, product_id, quantityproduct))
+            
                 db.commit()
-                await websocket.send(json.dumps({"status": "product list"}))
-
-
+            
+                await websocket.send(json.dumps({
+                    "status": "product_added",
+                    "product_id": product_id
+                }))
+            
 
 
 
