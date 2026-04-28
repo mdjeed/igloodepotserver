@@ -265,7 +265,7 @@ async def handle_connection(websocket):
                 updated_quantity = data.get('updated_quantity')  
                 added_quantity = data.get('added_quantity', 0)  
             
-                # 🔍 تحقق أن العنصر موجود
+
                 cursor.execute("SELECT name FROM products WHERE id = %s", (item_id,))
                 item = cursor.fetchone()
             
