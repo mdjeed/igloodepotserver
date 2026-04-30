@@ -4,8 +4,6 @@ import mysql.connector
 import json
 import uuid
 import ssl
-import os
-
 
 with open('setting.json') as config_file:
     config = json.load(config_file)
@@ -31,9 +29,6 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
                 )''')
 
 db.commit()
-
-async def process_request(path, request_headers):
-    return (200, [], b"OK")
 
 async def handle_connection(websocket):
     try:
@@ -61,9 +56,6 @@ async def handle_connection(websocket):
                 
                 await websocket.send(json.dumps(response))
 
-
-
-
             
             elif data['action'] == 'check_login':
                 token = data['token']
@@ -77,8 +69,6 @@ async def handle_connection(websocket):
                     response = {'status': 'errorlog', 'message': 'Invalid session'}
                 
                 await websocket.send(json.dumps(response))
-
-
 
             elif data['action'] == 'get_catego':
                 cursor.execute("SELECT id, name FROM categories")  
@@ -96,9 +86,6 @@ async def handle_connection(websocket):
                 products_list = [{'name': product[0], 'id': product[1], 'quantity': product[2]} for product in products]
 
                 await websocket.send(json.dumps({"status": "product list", "items": products_list}))
-
-
-
 
             elif data['action'] == 'add_product':
             
@@ -155,8 +142,6 @@ async def handle_connection(websocket):
                 }))
             
 
-
-
             elif data['action'] == 'selcteditem':
             
                 items = data['itemsSelected']
@@ -210,8 +195,6 @@ async def handle_connection(websocket):
                             
                                                         
 
-
-
             elif data['action'] == 'getselecteditem':
                 cursor.execute("SELECT date, item_name, quantity, added_by , company FROM inventory") 
                 sel3adate = cursor.fetchall()
@@ -224,7 +207,6 @@ async def handle_connection(websocket):
                 }
                 await websocket.send(json.dumps(websocket_message))
 
-
             elif data['action'] == 'check_update':
           
                 latest_version = "1.0.2" 
@@ -235,7 +217,6 @@ async def handle_connection(websocket):
                     'version': latest_version   
                 }
                 await websocket.send(json.dumps(response))
-
 
             elif data['action'] == 'add_category':
                             category_name = data['name']
@@ -252,8 +233,6 @@ async def handle_connection(websocket):
                                 response = {"status": "success", "message": "Category added successfully"}
                             
                             await websocket.send(json.dumps(response))
-
-
 
             
             elif data['action'] == 'ping':
@@ -461,11 +440,7 @@ async def handle_connection(websocket):
                     }))
                                                         
 
-
                        
-
-
-
 
     except websockets.exceptions.ConnectionClosedOK:
         print("Connection closed normally")
@@ -478,16 +453,8 @@ ssl_context.load_cert_chain(certfile="server.crt",
                             keyfile="server.key")
 
 async def main():
-    
-    PORT = int(os.environ.get("PORT", 5050))
-    print(f"Server starting on 0.0.0.0:{PORT}")
-
-    async with websockets.serve(
-           handle_connection,
-          "0.0.0.0",
-          PORT,
-           process_request=process_request
-             ):
+    print(f"Server starting on {server_config['host']}:{server_config['port']}")
+    async with websockets.serve(handle_connection, server_config['host'], server_config['port']):
         print("Server is running...")
         await asyncio.Future()  # تشغيل دائم (انتظار لا نهائي)
 
