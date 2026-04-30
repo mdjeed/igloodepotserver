@@ -1,7 +1,6 @@
 {
     "database": {
-      "host": "metro.proxy.rlwy.net",
-      "port": 30132,
+      "host": "mysql.railway.internal",
       "user": "root",
       "password": "qEratWswHVFoxceHVgnrPWfWvuXOVqtJ",
       "database": "railway"
