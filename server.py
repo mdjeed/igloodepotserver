@@ -4,6 +4,7 @@ import mysql.connector
 import json
 import uuid
 import ssl
+import os
 
 with open('setting.json') as config_file:
     config = json.load(config_file)
@@ -29,7 +30,12 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS mstkhdm_igloo (
                 )''')
 
 db.commit()
+async def process_request(path, request_headers):
+    # 👇 إذا مو WebSocket (مثل HEAD من Render)
+    if "Upgrade" not in request_headers:
+        return (200, [], b"OK")
 
+    return None  # كمل WebSocket عادي
 async def handle_connection(websocket):
     try:
         client_ip = websocket.remote_address[0]
@@ -453,8 +459,16 @@ ssl_context.load_cert_chain(certfile="server.crt",
                             keyfile="server.key")
 
 async def main():
-    print(f"Server starting on {server_config['host']}:{server_config['port']}")
-    async with websockets.serve(handle_connection, server_config['host'], server_config['port']):
+        PORT = int(os.environ.get("PORT", 8080))
+
+        print(f"Server starting on 0.0.0.0:{PORT}")
+
+        async with websockets.serve(
+              handle_connection,
+              "0.0.0.0",
+              PORT,
+              process_request=process_request
+               ):
         print("Server is running...")
         await asyncio.Future()  # تشغيل دائم (انتظار لا نهائي)
 
