@@ -1,7 +1,7 @@
 {
     "database": {
       "host": "metro.proxy.rlwy.net",
-      "port":30132,
+      "port": 30132,
       "user": "root",
       "password": "qEratWswHVFoxceHVgnrPWfWvuXOVqtJ",
       "database": "railway"
