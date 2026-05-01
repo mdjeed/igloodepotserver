@@ -415,5 +415,5 @@ app = web.Application()
 app.router.add_get('/', websocket_handler)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5050))
+    port = int(os.environ.get("PORT"))
     web.run_app(app, host="0.0.0.0", port=port)
